@@ -1,7 +1,7 @@
 from langgraph.graph import StateGraph, START, END
 from app.workflows.state import State
 from app.services.request_parser import RequestParser
-from app.workflows.nodes import job_search_node, job_filter_node
+from app.workflows.nodes import job_search_node, job_filter_node, rank_jobs_node
 
 class GraphBuilder:
     def __init__(self, model):
@@ -17,7 +17,7 @@ class GraphBuilder:
         self.graph_builder.add_node("parse_request", RequestParser)
         self.graph_builder.add_node("search_jobs", job_search_node)
         self.graph_builder.add_node("filter_jobs", job_filter_node)
-        self.graph_builder.add_node("rank_jobs", "")
+        self.graph_builder.add_node("rank_jobs", rank_jobs_node)
 
         self.graph_builder.add_edge(START, "parse_request")
         self.graph_builder.add_edge("parse_request", "search_jobs")

@@ -34,7 +34,7 @@ def filtered_jobs(
                 role in job_title for role in target_roles
             )
             if not target_roles:
-                raise KeyError("Target Roles not found in the user-query")
+                continue
 
         #Location filter
         if locations:

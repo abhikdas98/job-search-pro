@@ -11,3 +11,7 @@ class Job(BaseModel):
     description: str
     source: str
     posted_at: datetime | None = None
+
+class RankedJob(BaseModel):
+    job: Job
+    score: float
