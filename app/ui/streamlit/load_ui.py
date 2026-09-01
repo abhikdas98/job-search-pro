@@ -1,0 +1,36 @@
+import streamlit as st
+import os
+
+from app.ui.uiconfigfile import config
+
+class LoadStreamlitUI:
+    def __init__(self):
+        self.config = config()
+        self.user_controls = {}
+    #Set page header and title
+    def load_streamlit_ui(self):
+        st.set_page_config(page_title="🤖 " + self.config.get_page_title(), layout="wide")
+        st.header("🤖 " + self.config.get_page_title())
+
+        #Get options from config
+        with st.sidebar:
+            llm_options = self.config.get_llm_options()
+            usecase_options = self.config.get_usecase_options()
+
+            #LLM selection
+            self.user_controls["selected_llm"] = st.selectbox("Select LLM", llm_options)
+
+            if self.user_controls["selected_llm"] == "Groq":
+                #Getting the Groq model options
+                model_options = self.config.get_groq_model_options()
+                self.user_controls["selected_groq_model"] = st.selectbox("Select Model", model_options)
+                #self.user_controls["GROQ_API_KEY"] = st.session_state["GROQ_API_KEY"] = st.text_input("API Key", type="password")
+
+                #Validate API key
+                #if not self.user_controls["GROQ_API_KEY"]:
+                    #st.warning("⚠️ Please enter your Groq API Key to proceed. Don't have? Refer https://console.groq.com/")
+
+            #Usecase selection
+            self.user_controls["selected_usecase"] = st.selectbox("Selct Usecase", usecase_options)
+
+        return self.user_controls
