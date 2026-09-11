@@ -1,4 +1,4 @@
-from app.workflows.graphs import GraphBuilder
+from app.workflows.graph import GraphBuilder
 from langchain_groq import ChatGroq
 import os
 from dotenv import load_dotenv

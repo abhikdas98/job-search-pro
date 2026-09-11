@@ -1,11 +1,9 @@
 from langgraph.graph import StateGraph, START, END
 from app.workflows.state import State
-from app.services.request_parser import RequestParser
-from app.workflows.nodes import job_search_node, job_filter_node, rank_jobs_node
+from app.workflows.nodes import parse_request_node,job_search_node, job_filter_node, rank_jobs_node
 
 class GraphBuilder:
-    def __init__(self, model):
-        self.llm = model
+    def __init__(self):
         self.graph_builder = StateGraph(State)
 
     def basic_job_search_agent(self):
@@ -14,7 +12,7 @@ class GraphBuilder:
         Then creates a user profile and searches jobs according to the profile match and the
         requested fields
         """
-        self.graph_builder.add_node("parse_request", RequestParser)
+        self.graph_builder.add_node("parse_request", parse_request_node)
         self.graph_builder.add_node("search_jobs", job_search_node)
         self.graph_builder.add_node("filter_jobs", job_filter_node)
         self.graph_builder.add_node("rank_jobs", rank_jobs_node)
@@ -30,7 +28,7 @@ class GraphBuilder:
 
         return graph
 
-from langchain_groq import ChatGroq
+"""from langchain_groq import ChatGroq
 import os
 from dotenv import load_dotenv
 load_dotenv()
@@ -48,8 +46,6 @@ initial_state = {
 },
 "jobs": [],
 "selected_jobs": [],
-}
+}"""
 
-result = final_graph.invoke(initial_state)
 
-print(result["jobs"])

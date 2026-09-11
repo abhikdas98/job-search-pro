@@ -5,11 +5,11 @@ class UserProfile(BaseModel):
     """Structured representation of the user's job search preference"""
     target_roles: list[str] = Field(default_factory=list)
     locations: list[str] = Field(default_factory=list)
-    remote_preference: str | None
-    experience_years: str | None
-    skills: list[str] = Field(default_factory=list)
-    employment_type: str | None
-    minimum_salary: str | None
+    remote_preference: str | None = Field(default=None, description="Remote, Hybrid, or On-site preference if stated")
+    experience_years: str | None = Field(default=None)
+    skills: list[str] = Field(default_factory=list, description="List of skills if stated")
+    employment_type: str | None = Field(default=None, description="Full-time, Part-time, Contract, etc.")
+    minimum_salary: str | None = Field(default=None, description="Minimum salary expectation if stated")
 
 class RequestParser:
     """
@@ -35,6 +35,7 @@ class RequestParser:
         -minimum_salary
 
         Only extract information stated or clearly implied.
+        If list fields (target_roles, locations, skills) have no information, return an empty array []. Do NOT use null.
         If information is missing, leave it empty/null.
         """
 
