@@ -1,4 +1,5 @@
 from app.models.job import Job
+from app.tools.job_search.adzuna import AdzunaJobSource
 
 def search_jobs(
     target_roles: list[str],
@@ -10,7 +11,7 @@ def search_jobs(
     This is initially a mock implementation.
     Later this function will call real job sources/APIs.
     """
-    jobs = Job(
+    """jobs = Job(
         id="job_001",
         title="Generative AI Engineer",
         company="Example AI",
@@ -33,14 +34,14 @@ def search_jobs(
             "applications using Python and LLMs."
         ),
         source="mock",
-    )
+    )"""
 
-    """user_request = state.get("user_request", "")
-    user_profile = state.get("user_profile", {})
+    source = AdzunaJobSource()
 
-    target_roles = user_profile.get("target_roles", [])
-    locations = user_profile.get("locations", [])
-
-    jobs = [{"job_role": user_request, "target_roles": target_roles, "locations": locations}]"""
+    jobs: list[Job] = []
+    for role in target_roles:
+        for location in locations:
+            results = source.search(query=role, location=location)
+            jobs.extend(results)
 
     return jobs

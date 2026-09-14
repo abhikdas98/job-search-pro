@@ -7,3 +7,4 @@ fastapi
 requests
 python-dotenv
 langchain-groq
+httpx
