@@ -6,3 +6,4 @@ class State(TypedDict):
     user_profile: dict
     jobs: list[Job]
     selected_jobs: list[Job]
+    candidate_context: str

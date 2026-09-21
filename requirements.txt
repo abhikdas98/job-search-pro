@@ -1,5 +1,10 @@
 langgraph
 langchain
+langchain-core
+langchain-community
+langchain-text-splitters
+langchain-openai
+langchain-huggingface
 pydantic
 uvicorn
 streamlit
@@ -8,3 +13,5 @@ requests
 python-dotenv
 langchain-groq
 httpx
+faiss-cpu
+sentence-transformers
