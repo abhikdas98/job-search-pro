@@ -1,6 +1,6 @@
 from langgraph.graph import StateGraph, START, END
 from app.workflows.state import State
-from app.workflows.nodes import parse_request_node,job_search_node, job_filter_node, rank_jobs_node
+from app.workflows.nodes import parse_request_node,job_search_node, job_filter_node, rank_jobs_node, candidate_context_node
 
 class GraphBuilder:
     def __init__(self):
@@ -12,12 +12,14 @@ class GraphBuilder:
         Then creates a user profile and searches jobs according to the profile match and the
         requested fields
         """
+        self.graph_builder.add_node("retrieve_context", candidate_context_node)
         self.graph_builder.add_node("parse_request", parse_request_node)
         self.graph_builder.add_node("search_jobs", job_search_node)
         self.graph_builder.add_node("filter_jobs", job_filter_node)
         self.graph_builder.add_node("rank_jobs", rank_jobs_node)
 
-        self.graph_builder.add_edge(START, "parse_request")
+        self.graph_builder.add_edge(START, "retrieve_context")
+        self.graph_builder.add_edge("retrieve_context", "parse_request")
         self.graph_builder.add_edge("parse_request", "search_jobs")
         self.graph_builder.add_edge("search_jobs", "filter_jobs")
         self.graph_builder.add_edge("filter_jobs", "rank_jobs")
@@ -27,25 +29,3 @@ class GraphBuilder:
         graph = self.graph_builder.compile()
 
         return graph
-
-"""from langchain_groq import ChatGroq
-import os
-from dotenv import load_dotenv
-load_dotenv()
-
-api_key = os.environ["GROQ_API_KEY"] = os.getenv("GROQ_API_KEY")
-model = ChatGroq(model="qwen3.6-27b", api_key=api_key)
-builder = GraphBuilder(model=model)
-final_graph = builder.basic_job_search_agent()
-
-initial_state = {
-"user_request": "Find GenAI Engineer jobs in India",
-"user_profile": {
-    "target_roles": ["Generative AI Engineer"],
-    "locations": ["India"],
-},
-"jobs": [],
-"selected_jobs": [],
-}"""
-
-

@@ -7,6 +7,38 @@ from dotenv import load_dotenv
 load_dotenv()
 from langchain_groq import ChatGroq
 
+from pathlib import Path
+from app.rag.loader import DocumentLoader
+from app.rag.splitter import DocumentSplitter
+from app.rag.embeddings import EmbeddingService
+from app.rag.vector_store import VectorStoreService
+from app.rag.retriever import RAGRetrieverService
+
+def seed_rag_database_once():
+    PROJECT_ROOT = Path(__file__).resolve().parent
+    FILE_DIR = PROJECT_ROOT / "data" / "knowledge_base"
+    FILE_INDEX_PATH = PROJECT_ROOT / "data" / "faiss_index"
+
+    FILE_DIR.mkdir(parents=True, exist_ok=True)
+
+    loader_service = DocumentLoader(FILE_DIR)
+    docs = loader_service.load_all_documents()
+
+    if not docs:
+        print(f"⚠️ Seeding aborted: No files found inside source folder '{FILE_DIR}'.")
+        return
+
+    splitter_service = DocumentSplitter()
+    chunks = splitter_service.split_documents(docs)
+
+    embeds = EmbeddingService.get_embedding_model("huggingface")
+    db_service = VectorStoreService(index_dir=FILE_INDEX_PATH, embedding_model=embeds)
+
+    print(f"🏗️ Generating semantic text embeddings for database seeding...")
+    db_service.build_or_update_index(chunks)
+
+    print(f"✅ Seeding finished successfully! Index saved at: '{FILE_INDEX_PATH}'")
+
 def load_agenticai_app():
     """
     Loads and runs the LangGraph Agentic AI Application with Streamlist UI.
@@ -82,6 +114,3 @@ def load_agenticai_app():
                 st.write(desc)
                 # Convert HttpUrl objects safely to pure strings for the link component
                 st.link_button("View Job Posting 🚀", url=str(url))
-
-
-            

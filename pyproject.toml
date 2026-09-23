@@ -24,11 +24,16 @@ dependencies = [
     "requests>=2.34.2",
     "sentence-transformers>=6.1.0",
     "streamlit>=1.62.0",
+    "torch>=2.14.0",
+    "torchvision>=0.29.0",
     "uvicorn>=0.52.4",
 ]
 
 [project.scripts]
 job-search-pro = "job_search_pro:main"
+
+[[tool.uv.index]]
+url = "https://pytorch.org/"
 
 [build-system]
 requires = ["uv_build>=0.12.1,<0.13.0"]

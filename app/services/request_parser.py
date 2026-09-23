@@ -13,30 +13,32 @@ class UserProfile(BaseModel):
 
 class RequestParser:
     """
-    Parse the user request into a structured UserProfile
+    Parse the user request and resume context into a structured UserProfile
     """
     def __init__(self, llm):
         self.llm = llm
 
-    def parse(self, user_request: str) -> UserProfile:
-        prompt = f""""
-        Extract the following job-search preferences from the following user request.
+    #  UPDATED: Accepting both user_request and resume_context parameters
+    def parse(self, user_request: str, resume_context: str) -> UserProfile:
+        prompt = f"""
+        You are an expert HR data parsing agent. Your task is to extract job-search preferences 
+        by combining the raw user input request with the background context extracted from the candidate's profile/resume.
 
-        User request:
-        {user_request}
+        User Request:
+        "{user_request}"
 
-        Extract:
-        -target_roles 
-        -locations
-        -remote_preference
-        -experience_years
-        -skills
-        -employment_type
-        -minimum_salary
+        Retrieved Candidate Resume Context (RAG):
+        {resume_context}
 
-        Only extract information stated or clearly implied.
-        If list fields (target_roles, locations, skills) have no information, return an empty array []. Do NOT use null.
-        If information is missing, leave it empty/null.
+        Extraction Instructions:
+        1. target_roles: Extract roles explicitly requested in the chat message, supplemented by matching experience fields in the resume context.
+        2. locations: Look at where the candidate wants to apply based on their request.
+        3. skills: Cross-reference skills requested in the chat with the candidate's actual skills listed in the resume context. Extract relevant technical strings.
+        4. experience_years: Look up years of experience inside the resume context if not explicitly mentioned in the request message.
+        5. If list fields (target_roles, locations, skills) have no information, return an empty array []. Do NOT use null.
+        6. If any scalar fields (remote_preference, experience_years, employment_type, minimum_salary) are missing, return null.
+        
+        Only extract information stated or clearly implied across either text context blocks.
         """
 
         structured_llm = self.llm.with_structured_output(UserProfile)
