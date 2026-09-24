@@ -9,8 +9,8 @@ wheels/
 # Virtual environments & environment variables
 .venv
 .env
-experience.md
-customer_segmentation.md
-deepagents.md
-fraud_detection.md
-AI Engineer Resume.pdf
+# Private candidate knowledge base
+data/knowledge_base/
+
+# Local FAISS index
+data/faiss_index/

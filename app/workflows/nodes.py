@@ -13,7 +13,7 @@ from app.rag.splitter import DocumentSplitter
 from app.rag.embeddings import EmbeddingService
 from app.rag.vector_store import VectorStoreService
 from app.rag.retriever import RAGRetrieverService
-
+from app.core.paths import FAISS_INDEX_DIR
 
 def parse_request_node(state: State, config: RunnableConfig) -> dict:
     """Parses the user request into a structured UserProfile"""
@@ -72,27 +72,33 @@ def candidate_context_node(state: State):
     Queries the local FAISS index using the user_request to extract 
     relevant candidate profile/resume text context.
     """
-    PROJECT_ROOT = Path(__file__).resolve().parent
-    search_query = state.get("user_request", "")
+    PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
-    #Define absolute folder path
-    FILE_INDEX_PATH = PROJECT_ROOT / "data" / "faiss_index"
+    search_query = state.get("user_request", "")
 
     #Load the existing index cached in the local disk without reca;culating the embeddings
     embeds = EmbeddingService.get_embedding_model("huggingface")
-    db_service = VectorStoreService(index_dir=FILE_INDEX_PATH, embedding_model=embeds)
+    db_service = VectorStoreService(index_dir=FAISS_INDEX_DIR, embedding_model=embeds)
 
     try:
         db_instance = db_service.load_index()
 
     except FileNotFoundError:
         # Fallback guard rule: If the index folder is empty, return an empty context safely
-        print(f"⚠️ FAISS Index folder at '{FILE_INDEX_PATH}' is missing text indices.")
+        print(f"⚠️ FAISS Index folder at '{FAISS_INDEX_DIR}' is missing text indices.")
         return {"candidate_context": "No resume context files initialized."}
 
     #Run the semantic search lookup parameters
     retriever = RAGRetrieverService(db_instance)
     retrieved_context = retriever.retrieve_as_formatted_string(search_query, top_k=3)
+
+    print("\n" + "=" * 80)
+    print("🔎 CANDIDATE CONTEXT")
+    print("=" * 80)
+    print(retrieved_context)
+    print("=" * 80)
+    print(f"📏 Context length: {len(retrieved_context)} characters")
+    print("=" * 80 + "\n")
 
     return {
         "candidate_context": retrieved_context

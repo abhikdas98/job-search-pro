@@ -15,3 +15,4 @@ langchain-groq
 httpx
 faiss-cpu
 sentence-transformers
+pypdf

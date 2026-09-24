@@ -13,31 +13,29 @@ from app.rag.splitter import DocumentSplitter
 from app.rag.embeddings import EmbeddingService
 from app.rag.vector_store import VectorStoreService
 from app.rag.retriever import RAGRetrieverService
+from app.core.paths import KNOWLEDGE_BASE_DIR, FAISS_INDEX_DIR
 
 def seed_rag_database_once():
-    PROJECT_ROOT = Path(__file__).resolve().parent
-    FILE_DIR = PROJECT_ROOT / "data" / "knowledge_base"
-    FILE_INDEX_PATH = PROJECT_ROOT / "data" / "faiss_index"
 
-    FILE_DIR.mkdir(parents=True, exist_ok=True)
+    KNOWLEDGE_BASE_DIR.mkdir(parents=True, exist_ok=True)
 
-    loader_service = DocumentLoader(FILE_DIR)
+    loader_service = DocumentLoader(KNOWLEDGE_BASE_DIR)
     docs = loader_service.load_all_documents()
 
     if not docs:
-        print(f"⚠️ Seeding aborted: No files found inside source folder '{FILE_DIR}'.")
+        print(f"⚠️ Seeding aborted: No files found inside source folder '{KNOWLEDGE_BASE_DIR}'.")
         return
 
     splitter_service = DocumentSplitter()
     chunks = splitter_service.split_documents(docs)
 
     embeds = EmbeddingService.get_embedding_model("huggingface")
-    db_service = VectorStoreService(index_dir=FILE_INDEX_PATH, embedding_model=embeds)
+    db_service = VectorStoreService(index_dir=FAISS_INDEX_DIR, embedding_model=embeds)
 
     print(f"🏗️ Generating semantic text embeddings for database seeding...")
-    db_service.build_or_update_index(chunks)
+    db_service.build_index(chunks)
 
-    print(f"✅ Seeding finished successfully! Index saved at: '{FILE_INDEX_PATH}'")
+    print(f"✅ Seeding finished successfully! Index saved at: '{FAISS_INDEX_DIR}'")
 
 def load_agenticai_app():
     """
@@ -73,7 +71,15 @@ def load_agenticai_app():
         }, config=config)
 
         print(result["jobs"])
-        # Inside app/main.py where you process the graph result
+
+        print("\n" + "=" * 80)
+        print("🧠 FINAL GRAPH STATE")
+        print("=" * 80)
+
+        print("candidate_context:")
+        print(result.get("candidate_context"))
+
+        print("=" * 80 + "\n")
 
         # 1. Safely extract whatever the graph returned (jobs or selected_jobs)
         raw_jobs_data = result.get("selected_jobs") or result.get("jobs") or []

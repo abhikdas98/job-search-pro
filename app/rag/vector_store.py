@@ -14,32 +14,35 @@ class VectorStoreService:
         self.embeddings = embedding_model
         self.vector_store = None
 
-    def build_or_update_index(self, chunks: list[Document]) -> FAISS:
-        """
-        Creates a new FAISS vector database from text chunks or updates an existing local index.
-        """
-        if not chunks:
-            print("⚠️ No chunks provided to index.")
-            return self.vector_store
-
-        if self.index_dir.exists() and (self.index_dir / "index.faiss").exists():
-            print(f"📂 Found existing FAISS database at '{self.index_dir}'. Merging new documents...")
-            self.vector_store = FAISS.load_local(
-                folder_path = str(self.index_dir),
-                embeddings = self.embeddings,
-                allow_dangerous_deserialization = True
+    def build_index(self, chunks: list[Document]) -> FAISS:
+            """
+            Builds a fresh FAISS index from the supplied chunks.
+            Existing local index is replaced.
+            """
+    
+            if not chunks:
+                print("⚠️ No chunks provided to index.")
+                return None
+    
+            print("🏗️ Creating a fresh vector index...")
+    
+            self.vector_store = FAISS.from_documents(
+                chunks,
+                self.embeddings
             )
-
-            self.vector_store.add_documents(chunks)
-
-        else:
-            print(f"🏗️ Creating a brand-new local FAISS vector index database...")
-            self.vector_store = FAISS.from_documents(chunks, self.embeddings)
-
-        self.index_dir.mkdir(parents=True, exist_ok=True)
-        self.vector_store.save_local(str(self.index_dir))
-        print(f"💾 FAISS vector database successfully saved to disk at: '{self.index_dir}'")
-        return self.vector_store
+    
+            self.index_dir.mkdir(parents=True, exist_ok=True)
+    
+            self.vector_store.save_local(
+                str(self.index_dir)
+            )
+    
+            print(
+            f"💾 FAISS vector database successfully saved to: "
+            f"'{self.index_dir}'"
+            )
+    
+            return self.vector_store
     
 
     def load_index(self) -> FAISS:
@@ -55,3 +58,6 @@ class VectorStoreService:
         )
 
         return self.vector_store
+
+
+    
