@@ -14,6 +14,7 @@ from app.rag.embeddings import EmbeddingService
 from app.rag.vector_store import VectorStoreService
 from app.rag.retriever import RAGRetrieverService
 from app.core.paths import FAISS_INDEX_DIR
+from app.services.job_analyzer import analyze_job
 
 def parse_request_node(state: State, config: RunnableConfig) -> dict:
     """Parses the user request into a structured UserProfile"""
@@ -102,4 +103,33 @@ def candidate_context_node(state: State):
 
     return {
         "candidate_context": retrieved_context
+    }
+
+def analyze_jobs_node(state: State) -> dict:
+    pass
+    """
+    Analysze the selected jobs and return structured requirements
+    """
+
+    jobs = state.get("selected_jobs", [])
+
+    analyzed_jobs = [
+        analyze_job(job) for job in jobs
+        ]
+
+    print(
+        f"🔍 Analyzed {len(analyzed_jobs)} jobs"
+    )
+
+    print("\n" + "=" * 80)
+    print("🔍 ANALYZED JOBS")
+    print("=" * 80)
+
+    for job in analyzed_jobs:
+        print(job)
+
+    print("=" * 80 + "\n")
+
+    return {
+        "analyzed_jobs": analyzed_jobs
     }
