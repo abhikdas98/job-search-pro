@@ -1,5 +1,4 @@
 import os
-from pathlib import Path
 from app.workflows.state import State
 from app.services.request_parser import RequestParser
 from app.services.job_search import search_jobs as job_search_tool
@@ -9,11 +8,7 @@ from app.ui.streamlit.load_ui import LoadStreamlitUI
 from langchain_groq import ChatGroq
 from langchain_core.runnables import RunnableConfig
 from app.rag.loader import DocumentLoader
-from app.rag.splitter import DocumentSplitter
-from app.rag.embeddings import EmbeddingService
-from app.rag.vector_store import VectorStoreService
-from app.rag.retriever import RAGRetrieverService
-from app.core.paths import FAISS_INDEX_DIR
+from app.services.candidate_context import retrieve_candidate_context
 from app.services.job_analyzer import analyze_job
 
 def parse_request_node(state: State, config: RunnableConfig) -> dict:
@@ -70,35 +65,29 @@ def rank_jobs_node(state: State) -> dict:
 
 def candidate_context_node(state: State):
     """
-    Queries the local FAISS index using the user_request to extract 
-    relevant candidate profile/resume text context.
+    Retrieves candidate profile/resume context from the
+    local FAISS knowledge base using the user's request.
     """
-    PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
-    search_query = state.get("user_request", "")
+    search_query = state.get(
+        "user_request",
+        "",
+    )
 
-    #Load the existing index cached in the local disk without reca;culating the embeddings
-    embeds = EmbeddingService.get_embedding_model("huggingface")
-    db_service = VectorStoreService(index_dir=FAISS_INDEX_DIR, embedding_model=embeds)
-
-    try:
-        db_instance = db_service.load_index()
-
-    except FileNotFoundError:
-        # Fallback guard rule: If the index folder is empty, return an empty context safely
-        print(f"⚠️ FAISS Index folder at '{FAISS_INDEX_DIR}' is missing text indices.")
-        return {"candidate_context": "No resume context files initialized."}
-
-    #Run the semantic search lookup parameters
-    retriever = RAGRetrieverService(db_instance)
-    retrieved_context = retriever.retrieve_as_formatted_string(search_query, top_k=3)
+    retrieved_context = retrieve_candidate_context(
+        query=search_query,
+        top_k=3,
+    )
 
     print("\n" + "=" * 80)
     print("🔎 CANDIDATE CONTEXT")
     print("=" * 80)
     print(retrieved_context)
     print("=" * 80)
-    print(f"📏 Context length: {len(retrieved_context)} characters")
+    print(
+        f"📏 Context length: "
+        f"{len(retrieved_context)} characters"
+    )
     print("=" * 80 + "\n")
 
     return {
