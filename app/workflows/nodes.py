@@ -10,6 +10,10 @@ from langchain_core.runnables import RunnableConfig
 from app.rag.loader import DocumentLoader
 from app.services.candidate_context import retrieve_candidate_context
 from app.services.job_analyzer import analyze_job
+from app.services.candidate_matcher import (
+    retrieve_job_candidate_evidence,
+    match_candidate,
+)
 
 def parse_request_node(state: State, config: RunnableConfig) -> dict:
     """Parses the user request into a structured UserProfile"""
@@ -95,7 +99,6 @@ def candidate_context_node(state: State):
     }
 
 def analyze_jobs_node(state: State) -> dict:
-    pass
     """
     Analysze the selected jobs and return structured requirements
     """
@@ -121,4 +124,64 @@ def analyze_jobs_node(state: State) -> dict:
 
     return {
         "analyzed_jobs": analyzed_jobs
+    }
+
+def match_candidate_node(
+        state: State,
+        config: RunnableConfig
+        ) -> dict:
+    """
+    Match the candidate against each analyzed job using
+    job-specific RAG evidence.
+    """
+    
+    analyzed_jobs = state.get("analyzed_jobs", [])
+
+    llm = ChatGroq(
+        model=config["configurable"].get("model"),
+        api_key=os.getenv("GROQ_API_KEY"),
+    )
+
+    match_results = []
+
+    for job in analyzed_jobs:
+        print("\n" + "=" * 80)
+        print(
+            f"🧩 MATCHING CANDIDATE → "
+            f"{job.get('title')} @ "
+            f"{job.get("'company'")}"
+            )
+        print("=" * 80)
+
+        #Retrieve evidence specifically for this job
+        candidate_evidence = (
+            retrieve_job_candidate_evidence(job)
+        )
+
+        print("\n📚 JOB-SPECIFIC CANDIDATE EVIDENCE")
+        print("-" * 80)
+        print(candidate_evidence)
+
+        #Evaluate candidate against the job
+        result = match_candidate(
+            job=job,
+            candidate_evidance=candidate_evidence,
+            llm=llm,
+        )
+
+        match_results.append(result)
+
+        print("\n🎯 MATCH RESULT")
+        print("-" * 80)
+        print(result)
+
+    print("\n" + "=" * 80)
+    print(
+        f"✅ Candidate matching completed for "
+        f"{len(match_results)} jobs"
+    )
+    print("=" * 80 + "\n")
+
+    return {
+        "matched_results": match_results
     }
