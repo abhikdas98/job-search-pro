@@ -183,5 +183,5 @@ def match_candidate_node(
     print("=" * 80 + "\n")
 
     return {
-        "matched_results": match_results
+        "match_results": match_results
     }
