@@ -52,7 +52,7 @@ def retrieve_job_candidate_evidence(job: dict) -> str:
 
     return retrieve_candidate_context(
         query=query,
-        top_k=5,
+        top_k=3,
     )
 
 
