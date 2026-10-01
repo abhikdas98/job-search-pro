@@ -165,7 +165,7 @@ def match_candidate_node(
         #Evaluate candidate against the job
         result = match_candidate(
             job=job,
-            candidate_evidance=candidate_evidence,
+            candidate_evidence=candidate_evidence,
             llm=llm,
         )
 

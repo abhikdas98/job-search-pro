@@ -9,6 +9,7 @@ from app.workflows.nodes import (
     analyze_jobs_node,
     match_candidate_node,
     )
+from langgraph.pregel import RetryPolicy
 
 
 class GraphBuilder:
@@ -23,7 +24,7 @@ class GraphBuilder:
         """
         self.graph_builder.add_node("retrieve_context", candidate_context_node)
         self.graph_builder.add_node("parse_request", parse_request_node)
-        self.graph_builder.add_node("search_jobs", job_search_node)
+        self.graph_builder.add_node("search_jobs", job_search_node, retry=RetryPolicy(max_retries=3, backoff_factor=2))
         self.graph_builder.add_node("filter_jobs", job_filter_node)
         self.graph_builder.add_node("analyze_jobs", analyze_jobs_node)
         self.graph_builder.add_node("match_candidate", match_candidate_node)
