@@ -3,6 +3,8 @@ import re
 
 from langchain_groq import ChatGroq
 from app.services.candidate_context import retrieve_candidate_context
+import time
+MAX_MATCH_RETRIES = 3
 
 
 def build_job_match_query(job: dict) -> str:
@@ -74,109 +76,105 @@ def match_candidate(
     prompt = f"""
 You are an evidence-based candidate-job matching agent.
 
-Your task is to evaluate the candidate against the job.
+Use ONLY the candidate evidence below.
+Never invent experience.
 
-CRITICAL RULES:
+Classify important required skills as:
+- demonstrated = concrete professional/project usage
+- claimed = mentioned but insufficient concrete evidence
+- missing = no supporting evidence
 
-1. Use ONLY the candidate evidence supplied below.
-2. NEVER invent candidate experience.
-3. Do NOT treat a general interest as demonstrated experience.
-4. Do NOT treat a technology appearing in a skills list as
-   automatically demonstrated.
-5. A skill is "demonstrated" only when the evidence indicates
-   the candidate actually used it in professional work or a
-   concrete project.
-6. A skill is "claimed" when it is listed as a skill, interest,
-   learning area, or general capability but there is insufficient
-   concrete evidence of usage.
-7. A skill is "missing" when there is no supporting evidence.
-8. Required skills matter more than preferred skills.
-9. Consider the experience requirement separately.
-10. Do not penalize the candidate for information that simply
-    isn't present unless the job explicitly requires it.
-11. Return ONLY valid JSON.
-12. match_score must be an integer from 0 to 100.
+Required skills matter more than preferred skills.
+Consider experience separately.
+
+Return ONLY valid JSON.
+match_score must be an integer from 0 to 100.
 
 JOB
 ===
-
-Title:
-{job.get("title", "")}
-
-Company:
-{job.get("company", "")}
-
-Location:
-{job.get("location", "")}
-
-Required skills:
-{job.get("required_skills", [])}
-
-Preferred skills:
-{job.get("preferred_skills", [])}
-
-Experience required:
-{job.get("experience_required", "")}
-
-Responsibilities:
-{job.get("responsibilities", [])}
-
-Keywords:
-{job.get("keywords", [])}
-
+Title: {job.get("title", "")}
+Company: {job.get("company", "")}
+Location: {job.get("location", "")}
+Required skills: {job.get("required_skills", [])}
+Preferred skills: {job.get("preferred_skills", [])}
+Experience required: {job.get("experience_required", "")}
+Responsibilities: {job.get("responsibilities", [])}
+Keywords: {job.get("keywords", [])}
 
 CANDIDATE EVIDENCE
 ==================
-
 {candidate_evidence}
 
-
-For every important required skill, classify it as:
-
-- demonstrated
-- claimed
-- missing
-
-Use this exact JSON structure:
+Return:
 
 {{
     "match_score": 0,
-
     "skill_assessment": [
         {{
             "skill": "python",
             "status": "demonstrated",
-            "evidence": "Concrete evidence from the candidate context"
+            "evidence": "Concrete evidence"
         }}
     ],
-
     "matched_skills": [],
     "claimed_skills": [],
     "missing_skills": [],
-
     "experience_match": {{
         "status": "strong|partial|weak|unknown",
-        "evidence": "Evidence supporting this assessment"
+        "evidence": "Evidence"
     }},
-
     "relevant_evidence": [],
-
-    "reasoning": "Concise explanation of the overall match."
+    "reasoning": "Concise explanation"
 }}
 
-IMPORTANT:
-
-matched_skills must contain ONLY skills whose status is
-"demonstrated".
-
-claimed_skills must contain ONLY skills whose status is
-"claimed".
-
-missing_skills must contain ONLY skills whose status is
-"missing".
+matched_skills = demonstrated only.
+claimed_skills = claimed only.
+missing_skills = missing only.
+Keep reasoning concise.
 """
 
-    response = llm.invoke(prompt)
+    last_error = None
+
+    for attempt in range(1, MAX_MATCH_RETRIES + 1):
+        try:
+            response = llm.invoke(
+                prompt,
+                max_tokens=1200,
+            )
+            break
+
+        except Exception as error:
+            last_error = error
+            error_text = str(error).lower()
+
+            is_rate_limit = (
+                "429" in error_text
+                or "rate_limit" in error_text
+            )
+
+            if not is_rate_limit:
+                raise
+
+            if attempt >= MAX_MATCH_RETRIES:
+                raise
+
+            retry_match = re.search(
+                r"try again in\s+([0-9]+(?:\.[0-9]+)?)s",
+                str(error),
+                flags=re.IGNORECASE,
+            )
+
+            if retry_match:
+                delay = float(retry_match.group(1)) + 0.5
+            else:
+                delay = min(2 ** attempt, 10)
+
+            print(
+                f"⏳ Groq rate limit hit. "
+                f"Retrying in {delay:.1f}s..."
+            )
+
+            time.sleep(delay)
 
     content = response.content.strip()
 

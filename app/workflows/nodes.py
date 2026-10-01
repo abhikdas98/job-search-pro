@@ -15,6 +15,8 @@ from app.services.candidate_matcher import (
     match_candidate,
 )
 
+MAX_JOBS_TO_MATCH = 8
+
 def parse_request_node(state: State, config: RunnableConfig) -> dict:
     """Parses the user request into a structured UserProfile"""
     user_request = state["user_request"]
@@ -177,6 +179,15 @@ def match_candidate_node(
     
     analyzed_jobs = state.get("analyzed_jobs", [])
 
+    jobs_to_match = analyzed_jobs[:MAX_JOBS_TO_MATCH]
+
+    if len(analyzed_jobs) > MAX_JOBS_TO_MATCH:
+        print(
+            f"⚠️ {len(analyzed_jobs)} jobs available, but only "
+            f"{MAX_JOBS_TO_MATCH} will be sent to the LLM matcher "
+            f"for this run."
+        )
+
     llm = ChatGroq(
         model=config["configurable"].get("model"),
         api_key=os.getenv("GROQ_API_KEY"),
@@ -184,7 +195,7 @@ def match_candidate_node(
 
     match_results = []
 
-    for job in analyzed_jobs:
+    for job in jobs_to_match:
         print("\n" + "=" * 80)
         print(
             f"🧩 MATCHING CANDIDATE → "
