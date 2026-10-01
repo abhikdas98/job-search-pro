@@ -1,141 +1,220 @@
 from app.models.job import Job, RankedJob
-import re
 
-# app/services/rank_jobs.py
 
 def rank_jobs(
-        jobs: list,
-        user_profile: dict
+    jobs: list,
+    match_results: list[dict],
+    user_profile: dict,
 ) -> list[dict]:
     """
-    Rank jobs based on the user's preferences and requirements.
+    Rank jobs using candidate-job match results.
+
+    Primary signal:
+        - LLM-generated candidate match score
+
+    Secondary signals:
+        - Target role alignment
+        - Location alignment
     """
+
+    match_lookup = {
+        str(result.get("job_id")): result
+        for result in match_results
+        if result.get("job_id") is not None
+    }
+
     ranked_jobs = []
-    
-    # 1. Safely handle user profile formatting conversion
-    if isinstance(user_profile, dict):
-        user_profile_dict = user_profile
-    elif hasattr(user_profile, "model_dump") and not isinstance(user_profile, type):
-        user_profile_dict = user_profile.model_dump()
-    else:
-        user_profile_dict = getattr(user_profile, "__dict__", {})
 
     for item in jobs:
-        # 🚨 THE DIRECT CATCH RULE: If the item is a class type declaration definition, skip it!
-        if isinstance(item, type):
-            continue
 
-        # 2. Extract standard dictionary keys from the active node items safely
-        if isinstance(item, dict):
-            job_dict = item
-        elif hasattr(item, "model_dump") and not isinstance(item, type):
+        # --------------------------------------------------
+        # Convert Job/Pydantic object into dictionary
+        # --------------------------------------------------
+
+        if isinstance(item, Job):
             job_dict = item.model_dump()
-        elif hasattr(item, "__dict__") and not isinstance(item, type):
-            job_dict = item.__dict__
-        else:
-            job_dict = dict(item) if hasattr(item, "items") else {}
 
-        # 3. If conversion resulted in an empty configuration object, discard it
-        if not job_dict:
+        elif hasattr(item, "model_dump"):
+            job_dict = item.model_dump()
+
+        elif isinstance(item, dict):
+            job_dict = item
+
+        else:
             continue
 
-        # Execute processing scores using structural elements
-        job_score = calculate_job_score(job_dict, user_profile_dict)
+        job_id = str(
+            job_dict.get("id")
+            or job_dict.get("job_id")
+        )
 
-        # Rehydrate into model configurations safely for tracking pipelines
+        match_result = match_lookup.get(job_id)
+
+        # --------------------------------------------------
+        # If no candidate match exists, skip the job
+        # --------------------------------------------------
+
+        if not match_result:
+            continue
+
+        # --------------------------------------------------
+        # Candidate match score
+        # --------------------------------------------------
+
+        match_score = float(
+            match_result.get("match_score", 0)
+        )
+
+        # --------------------------------------------------
+        # Role alignment
+        # --------------------------------------------------
+
+        role_score = calculate_role_score(
+            job_dict,
+            user_profile
+        )
+
+        # --------------------------------------------------
+        # Location alignment
+        # --------------------------------------------------
+
+        location_score = calculate_location_score(
+            job_dict,
+            user_profile
+        )
+
+        # --------------------------------------------------
+        # Final ranking score
+        # --------------------------------------------------
+        #
+        # Candidate-job fit is intentionally dominant.
+        #
+        # 80% → candidate match
+        # 10% → role alignment
+        # 10% → location alignment
+        #
+        # --------------------------------------------------
+
+        final_score = (
+            match_score * 0.80
+            + role_score * 0.10
+            + location_score * 0.10
+        )
+
+        final_score = round(final_score, 2)
+
+        # --------------------------------------------------
+        # Recreate Job model
+        # --------------------------------------------------
+
         try:
-            if "title" not in job_dict:
-                job_dict["title"] = job_dict.get("job_title") or job_dict.get("role") or "Unknown Title"
-            job_obj = Job(**job_dict)
+            job = Job(**job_dict)
+
         except Exception:
-            job_obj = item 
+            print(
+                f"⚠️ Could not convert job "
+                f"{job_id} into Job model."
+            )
+            continue
 
-        ranked_jobs.append(RankedJob(job=job_obj, score=job_score))
+        ranked_job = RankedJob(
+            job=job,
+            score=final_score,
+        )
 
-    # Sort descending based on scoring metrics
-    ranked_jobs.sort(key=lambda ranked_job: ranked_job.score, reverse=True)
-    
-    # Clear out outputs back down into standard JSON structures for graph transitions
-    output_list = []
-    for model in ranked_jobs:
-        if hasattr(model, "model_dump") and not isinstance(model, type):
-            output_list.append(model.model_dump())
-        else:
-            output_list.append({"job": job_dict, "score": model.score})
-            
-    return output_list
+        ranked_jobs.append({
+            "job": ranked_job.job.model_dump(),
+            "score": ranked_job.score,
+            "match_score": match_score,
+            "role_score": role_score,
+            "location_score": location_score,
+            "matched_skills": match_result.get(
+                "matched_skills",
+                []
+            ),
+            "claimed_skills": match_result.get(
+                "claimed_skills",
+                []
+            ),
+            "missing_skills": match_result.get(
+                "missing_skills",
+                []
+            ),
+            "experience_match": match_result.get(
+                "experience_match",
+                {}
+            ),
+            "reasoning": match_result.get(
+                "reasoning",
+                ""
+            ),
+            "relevant_evidence": match_result.get(
+                "relevant_evidence",
+                []
+            ),
+        })
 
+    # ------------------------------------------------------
+    # Highest score first
+    # ------------------------------------------------------
 
-
-def calculate_job_score(job: dict, user_profile: dict) -> float:
-    role_score = calculate_role_score(job, user_profile)
-    skill_score = calculate_skill_score(job, user_profile)
-    experience_score = calculate_experience_score(job, user_profile)
-    location_score = calculate_location_score(job, user_profile)
-
-    total_score = (
-        role_score * 0.4 +
-        skill_score * 0.3 +
-        experience_score * 0.2 +
-        location_score * 0.1
+    ranked_jobs.sort(
+        key=lambda item: item["score"],
+        reverse=True,
     )
 
-    return round(total_score, 2)
+    return ranked_jobs
 
-def calculate_role_score(job: dict, user_profile: dict) -> float:
-    target_roles = user_profile.get("target_roles", [])
+
+def calculate_role_score(
+    job: dict,
+    user_profile: dict,
+) -> float:
+
+    target_roles = user_profile.get(
+        "target_roles",
+        []
+    )
+
     if not target_roles:
         return 0.0
 
-    #  FIX: Look for common title naming conventions to avoid AttributeError
-    job_title_raw = job.get("title") or job.get("job_title") or job.get("role") or ""
-    job_title = job_title_raw.lower()
-    
-    role_match = any(
-        role.lower() in job_title for role in target_roles
-    )
-    return 1.0 if role_match else 0.0
+    job_title = (
+        job.get("title")
+        or ""
+    ).lower()
 
-def calculate_skill_score(job: dict, user_profile: dict) -> float:
-    user_skills = user_profile.get("skills", [])
-    if not user_skills:
-        return 0.0
+    for role in target_roles:
 
-    job_title_raw = job.get("title") or job.get("job_title") or job.get("role") or ""
-    job_desc = job.get("description") or job.get("job_description") or ""
-    
-    job_text = f"{job_title_raw} {job_desc}".lower()
-    
-    total_matches = 0
-    for skill in user_skills:
-        pattern = rf"\b{re.escape(skill.lower())}\b"
-        if re.search(pattern, job_text):
-            total_matches += 1
+        role = role.lower().strip()
 
-    return total_matches / len(user_skills) if len(user_skills) > 0 else 0.0
+        if role in job_title:
+            return 100.0
 
-def calculate_experience_score(job: dict, user_profile: dict) -> float:
-    user_experience = user_profile.get("experience_years")
-    if not user_experience:
-        return 0.0
-
-    job_title_raw = job.get("title") or job.get("job_title") or job.get("role") or ""
-    job_desc = job.get("description") or job.get("job_description") or ""
-    job_text = f"{job_title_raw} {job_desc}".lower()
-
-    if str(user_experience).lower() in job_text:
-        return 1.0
     return 0.0
 
-def calculate_location_score(job: dict, user_profile: dict) -> float:
-    preferred_locations = user_profile.get("locations", [])
+
+def calculate_location_score(
+    job: dict,
+    user_profile: dict,
+) -> float:
+
+    preferred_locations = user_profile.get(
+        "locations",
+        []
+    )
+
     if not preferred_locations:
         return 0.0
-        
-    job_location = (job.get("location") or job.get("job_location") or "").lower()
+
+    job_location = (
+        job.get("location")
+        or ""
+    ).lower()
 
     for location in preferred_locations:
-        if location.lower() in job_location:
-            return 1.0
-            
+
+        if location.lower().strip() in job_location:
+            return 100.0
+
     return 0.0

@@ -58,10 +58,50 @@ def job_filter_node(state: State) -> dict:
 
 
 def rank_jobs_node(state: State) -> dict:
+    """
+    Rank filtered jobs using candidate-job match results.
+    """
+
     ranked_jobs = rank_filter_tool(
         jobs=state["selected_jobs"],
-        user_profile=state["user_profile"]
+        match_results=state["match_results"],
+        user_profile=state["user_profile"],
     )
+
+    print("\n" + "=" * 80)
+    print("🏆 FINAL JOB RANKING")
+    print("=" * 80)
+
+    for index, job in enumerate(ranked_jobs, start=1):
+
+        job_data = job["job"]
+
+        print(
+            f"{index}. "
+            f"{job_data.get('title')} @ "
+            f"{job_data.get('company')}"
+        )
+
+        print(
+            f"   Final Score: {job['score']}"
+        )
+
+        print(
+            f"   Match Score: "
+            f"{job['match_score']}"
+        )
+
+        print(
+            f"   Matched Skills: "
+            f"{job['matched_skills']}"
+        )
+
+        print(
+            f"   Missing Skills: "
+            f"{job['missing_skills']}"
+        )
+
+        print("-" * 80)
 
     return {
         "selected_jobs": ranked_jobs
