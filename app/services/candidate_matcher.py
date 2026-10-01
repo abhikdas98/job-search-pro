@@ -140,7 +140,7 @@ Return exactly this JSON structure:
     "match_score: 0,
     "matched_skills: [],
     "missing_skills": [],
-    "relevanta_evidance": "",
+    "relevant_evidance": "",
     "reasoning": "",
 }}
 """

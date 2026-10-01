@@ -149,7 +149,7 @@ def match_candidate_node(
         print(
             f"🧩 MATCHING CANDIDATE → "
             f"{job.get('title')} @ "
-            f"{job.get("'company'")}"
+            f"{job.get('company')}"
             )
         print("=" * 80)
 
