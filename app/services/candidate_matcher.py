@@ -1,9 +1,10 @@
 import json
 import re
+import time
 
 from langchain_groq import ChatGroq
 from app.services.candidate_context import retrieve_candidate_context
-import time
+
 MAX_MATCH_RETRIES = 3
 
 
@@ -56,6 +57,29 @@ def retrieve_job_candidate_evidence(job: dict) -> str:
         query=query,
         top_k=3,
     )
+
+
+def _rate_limit_fallback(job: dict, error: Exception) -> dict:
+    """Return a safe result when the LLM cannot be called."""
+    return {
+        "job_id": job.get("job_id"),
+        "title": job.get("title"),
+        "company": job.get("company"),
+        "match_score": 0,
+        "skill_assessment": [],
+        "matched_skills": [],
+        "claimed_skills": [],
+        "missing_skills": [],
+        "experience_match": {
+            "status": "unknown",
+            "evidence": "Candidate matching was unavailable.",
+        },
+        "relevant_evidence": [],
+        "reasoning": (
+            "Candidate matching was skipped because the LLM rate limit "
+            f"was reached: {error}"
+        ),
+    }
 
 
 def match_candidate(
@@ -133,8 +157,6 @@ missing_skills = missing only.
 Keep reasoning concise.
 """
 
-    last_error = None
-
     for attempt in range(1, MAX_MATCH_RETRIES + 1):
         try:
             response = llm.invoke(
@@ -144,9 +166,7 @@ Keep reasoning concise.
             break
 
         except Exception as error:
-            last_error = error
             error_text = str(error).lower()
-
             is_rate_limit = (
                 "429" in error_text
                 or "rate_limit" in error_text
@@ -156,7 +176,12 @@ Keep reasoning concise.
                 raise
 
             if attempt >= MAX_MATCH_RETRIES:
-                raise
+                print(
+                    f"⚠️ Groq rate limit persisted for "
+                    f"{job.get('title')} @ {job.get('company')}. "
+                    "Using fallback match result and continuing."
+                )
+                return _rate_limit_fallback(job, error)
 
             retry_match = re.search(
                 r"try again in\s+([0-9]+(?:\.[0-9]+)?)s",
@@ -173,24 +198,17 @@ Keep reasoning concise.
                 f"⏳ Groq rate limit hit. "
                 f"Retrying in {delay:.1f}s..."
             )
-
             time.sleep(delay)
 
     content = response.content.strip()
 
-    # Remove accidental markdown code fences.
     content = re.sub(
         r"^```(?:json)?\s*",
         "",
         content,
         flags=re.IGNORECASE,
     )
-
-    content = re.sub(
-        r"\s*```$",
-        "",
-        content,
-    ).strip()
+    content = re.sub(r"\s*```$", "", content).strip()
 
     try:
         result = json.loads(content)
@@ -211,47 +229,23 @@ Keep reasoning concise.
             },
             "relevant_evidence": [],
             "reasoning": (
-                "The candidate matcher returned invalid "
-                "structured output."
+                "The candidate matcher returned invalid structured output."
             ),
         }
 
-    # Normalize the output so downstream nodes can rely
-    # on a predictable schema.
     return {
         "job_id": job.get("job_id"),
         "title": job.get("title"),
         "company": job.get("company"),
         "match_score": result.get("match_score", 0),
-        "skill_assessment": result.get(
-            "skill_assessment",
-            [],
-        ),
-        "matched_skills": result.get(
-            "matched_skills",
-            [],
-        ),
-        "claimed_skills": result.get(
-            "claimed_skills",
-            [],
-        ),
-        "missing_skills": result.get(
-            "missing_skills",
-            [],
-        ),
+        "skill_assessment": result.get("skill_assessment", []),
+        "matched_skills": result.get("matched_skills", []),
+        "claimed_skills": result.get("claimed_skills", []),
+        "missing_skills": result.get("missing_skills", []),
         "experience_match": result.get(
             "experience_match",
-            {
-                "status": "unknown",
-                "evidence": "",
-            },
+            {"status": "unknown", "evidence": ""},
         ),
-        "relevant_evidence": result.get(
-            "relevant_evidence",
-            [],
-        ),
-        "reasoning": result.get(
-            "reasoning",
-            "",
-        ),
+        "relevant_evidence": result.get("relevant_evidence", []),
+        "reasoning": result.get("reasoning", ""),
     }
