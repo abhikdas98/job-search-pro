@@ -17,12 +17,14 @@ from app.services.candidate_matcher import (
 
 MAX_JOBS_TO_MATCH = 8
 
+
 def parse_request_node(state: State, config: RunnableConfig) -> dict:
     """Parses the user request into a structured UserProfile"""
     user_request = state["user_request"]
     candidate_resume_context = state["candidate_context"]
 
-    llm = ChatGroq(model=config["configurable"].get("model"), api_key=os.getenv("GROQ_API_KEY"))
+    llm = ChatGroq(model=config["configurable"].get(
+        "model"), api_key=os.getenv("GROQ_API_KEY"))
     parser = RequestParser(llm=llm)
     user_profile = parser.parse(user_request, candidate_resume_context)
 
@@ -105,9 +107,20 @@ def rank_jobs_node(state: State) -> dict:
 
         print("-" * 80)
 
+        print(
+            "RANKING PROFILE TYPE:",
+            type(state["user_profile"])
+        )
+
+        print(
+            "TARGET ROLES:",
+            state["user_profile"].target_roles
+        )
+
     return {
         "selected_jobs": ranked_jobs
     }
+
 
 def candidate_context_node(state: State):
     """
@@ -140,6 +153,7 @@ def candidate_context_node(state: State):
         "candidate_context": retrieved_context
     }
 
+
 def analyze_jobs_node(state: State) -> dict:
     """
     Analysze the selected jobs and return structured requirements
@@ -149,7 +163,7 @@ def analyze_jobs_node(state: State) -> dict:
 
     analyzed_jobs = [
         analyze_job(job) for job in jobs
-        ]
+    ]
 
     print(
         f"🔍 Analyzed {len(analyzed_jobs)} jobs"
@@ -168,15 +182,16 @@ def analyze_jobs_node(state: State) -> dict:
         "analyzed_jobs": analyzed_jobs
     }
 
+
 def match_candidate_node(
         state: State,
         config: RunnableConfig
-        ) -> dict:
+) -> dict:
     """
     Match the candidate against each analyzed job using
     job-specific RAG evidence.
     """
-    
+
     analyzed_jobs = state.get("analyzed_jobs", [])
 
     jobs_to_match = analyzed_jobs[:MAX_JOBS_TO_MATCH]
@@ -201,10 +216,10 @@ def match_candidate_node(
             f"🧩 MATCHING CANDIDATE → "
             f"{job.get('title')} @ "
             f"{job.get('company')}"
-            )
+        )
         print("=" * 80)
 
-        #Retrieve evidence specifically for this job
+        # Retrieve evidence specifically for this job
         candidate_evidence = (
             retrieve_job_candidate_evidence(job)
         )
@@ -213,7 +228,7 @@ def match_candidate_node(
         print("-" * 80)
         print(candidate_evidence)
 
-        #Evaluate candidate against the job
+        # Evaluate candidate against the job
         result = match_candidate(
             job=job,
             candidate_evidence=candidate_evidence,

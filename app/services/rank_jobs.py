@@ -1,6 +1,10 @@
 from app.models.job import Job, RankedJob
 
 
+def get_profile_value(user_profile, field, default=None):
+    return getattr(user_profile, field, default)
+
+
 def rank_jobs(
     jobs: list,
     match_results: list[dict],
@@ -171,7 +175,8 @@ def calculate_role_score(
     user_profile: dict,
 ) -> float:
 
-    target_roles = user_profile.get(
+    target_roles = get_profile_value(
+        user_profile,
         "target_roles",
         []
     )
@@ -199,12 +204,13 @@ def calculate_location_score(
     user_profile: dict,
 ) -> float:
 
-    preferred_locations = user_profile.get(
+    locations = get_profile_value(
+        user_profile,
         "locations",
         []
     )
 
-    if not preferred_locations:
+    if not locations:
         return 0.0
 
     job_location = (
@@ -212,7 +218,7 @@ def calculate_location_score(
         or ""
     ).lower()
 
-    for location in preferred_locations:
+    for location in locations:
 
         if location.lower().strip() in job_location:
             return 100.0
