@@ -63,59 +63,33 @@ def job_filter_node(state: State) -> dict:
 
 def rank_jobs_node(state: State) -> dict:
     """
-    Rank filtered jobs using candidate-job match results.
+    Rank only jobs that were evaluated by the candidate matcher.
     """
 
-    ranked_jobs = rank_filter_tool(
-        jobs=state["selected_jobs"],
-        match_results=state["match_results"],
-        user_profile=state["user_profile"],
+    jobs = state.get("selected_jobs", [])
+    match_results = state.get("match_results", [])
+
+    # Candidate matching is intentionally limited to the top 8 jobs.
+    # Ranking should use the same set of jobs.
+    ranked_input = [
+        job
+        for job in jobs
+        if str(job.id) in {
+            str(result.get("job_id"))
+            for result in match_results
+            if result.get("job_id") is not None
+        }
+    ]
+
+    print(
+        f"🏆 Ranking {len(ranked_input)} candidate-matched jobs"
     )
 
-    print("\n" + "=" * 80)
-    print("🏆 FINAL JOB RANKING")
-    print("=" * 80)
-
-    for index, job in enumerate(ranked_jobs, start=1):
-
-        job_data = job["job"]
-
-        print(
-            f"{index}. "
-            f"{job_data.get('title')} @ "
-            f"{job_data.get('company')}"
-        )
-
-        print(
-            f"   Final Score: {job['score']}"
-        )
-
-        print(
-            f"   Match Score: "
-            f"{job['match_score']}"
-        )
-
-        print(
-            f"   Matched Skills: "
-            f"{job['matched_skills']}"
-        )
-
-        print(
-            f"   Missing Skills: "
-            f"{job['missing_skills']}"
-        )
-
-        print("-" * 80)
-
-        print(
-            "RANKING PROFILE TYPE:",
-            type(state["user_profile"])
-        )
-
-        print(
-            "TARGET ROLES:",
-            state["user_profile"].target_roles
-        )
+    ranked_jobs = rank_filter_tool(
+        jobs=ranked_input,
+        user_profile=state["user_profile"],
+        match_results=match_results,
+    )
 
     return {
         "selected_jobs": ranked_jobs
